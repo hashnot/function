@@ -2,15 +2,18 @@ package amqptypes
 
 import (
 	"errors"
-	"github.com/streadway/amqp"
+	"github.com/hashnot/function/amqp"
+	q "github.com/streadway/amqp"
 	"time"
 )
 
 type Configuration struct {
-	Url     string `yaml:"url"`
-	Input   *Queue `yaml:"input"`
-	*Output `yaml:"output"`
-	Errors  *Output `yaml:"errors"`
+	Url    string  `yaml:"url"`
+	Input  *Queue  `yaml:"input"`
+	Output *Output `yaml:"output"`
+	Errors *Output `yaml:"errors"`
+
+	amqp.Dialer
 }
 
 var defaultError = &Output{
@@ -30,21 +33,21 @@ func (c *Configuration) SetupOutputs() {
 	}
 }
 
-func (c *Configuration) Dial() (*amqp.Connection, error) {
-	return amqp.Dial(c.Url)
+func (c *Configuration) Dial() (amqp.Connection, error) {
+	return c.Dialer.Dial(c.Url)
 }
 
 type Queue struct {
-	Name      string     `yaml:"name"`
-	Consumer  string     `yaml:"consumer"`
-	AutoAck   bool       `yaml:"autoAck"`
-	Exclusive bool       `yaml:"exclusive"`
-	NoLocal   bool       `yaml:"noLocal"`
-	NoWait    bool       `yaml:"noWait"`
-	Args      amqp.Table `yaml:"args"`
+	Name      string  `yaml:"name"`
+	Consumer  string  `yaml:"consumer"`
+	AutoAck   bool    `yaml:"autoAck"`
+	Exclusive bool    `yaml:"exclusive"`
+	NoLocal   bool    `yaml:"noLocal"`
+	NoWait    bool    `yaml:"noWait"`
+	Args      q.Table `yaml:"args"`
 }
 
-func (q *Queue) Consume(ch *amqp.Channel) (<-chan amqp.Delivery, error) {
+func (q *Queue) Consume(ch amqp.Channel) (<-chan q.Delivery, error) {
 	if q.Name == "" {
 		return nil, errors.New("Undefined queue")
 	}
@@ -83,8 +86,8 @@ type Publishing struct {
 	//Body            []byte `yaml:",-"`
 }
 
-func (o *Output) Publish(ch *amqp.Channel, body []byte) error {
-	pub := &amqp.Publishing{
+func (o *Output) Publish(ch amqp.Channel, body []byte) error {
+	pub := &q.Publishing{
 		Body:      body,
 		Timestamp: time.Now(),
 	}

@@ -2,8 +2,9 @@ package function
 
 import (
 	"encoding/json"
+	"github.com/hashnot/function/amqp"
 	"github.com/hashnot/function/amqptypes"
-	"github.com/streadway/amqp"
+	q "github.com/streadway/amqp"
 	"log"
 )
 
@@ -18,6 +19,10 @@ func Start(f Function) error {
 }
 
 func StartWithConfig(f Function, config *amqptypes.Configuration) error {
+	if config.Dialer == nil {
+		config.Dialer = &amqp.AmqpDialer{}
+	}
+
 	config.SetupOutputs()
 
 	conn, err := config.Dial()
@@ -42,13 +47,14 @@ func StartWithConfig(f Function, config *amqptypes.Configuration) error {
 
 type OutChan chan<- *OutputMessage
 
-func SetupOutput(c *amqptypes.Configuration, ch *amqp.Channel) (OutChan, error) {
+func SetupOutput(c *amqptypes.Configuration, ch amqp.Channel) (OutChan, error) {
 	outChan := make(chan *OutputMessage, 8)
 
 	go func() {
 		for d := range outChan {
 			buf, err := json.Marshal(d.Payload)
 			if err != nil {
+				log.Print(err)
 				c.Errors.Publish(ch, []byte(err.Error()))
 			}
 
@@ -62,7 +68,7 @@ func SetupOutput(c *amqptypes.Configuration, ch *amqp.Channel) (OutChan, error) 
 	return outChan, nil
 }
 
-func ReadInput(config *amqptypes.Configuration, ch *amqp.Channel, f Function, outChan OutChan) error {
+func ReadInput(config *amqptypes.Configuration, ch amqp.Channel, f Function, outChan OutChan) error {
 	msgs, err := config.Input.Consume(ch)
 	if err != nil {
 		return err
@@ -93,10 +99,10 @@ func ReadInput(config *amqptypes.Configuration, ch *amqp.Channel, f Function, ou
 }
 
 type Message struct {
-	delivery amqp.Delivery
+	delivery q.Delivery
 }
 
-func (m *Message) Get() *amqp.Delivery {
+func (m *Message) Get() *q.Delivery {
 	return &m.delivery
 }
 
@@ -105,7 +111,7 @@ func (m *Message) GetPayload(t interface{}) error {
 }
 
 type InputMessage interface {
-	Get() *amqp.Delivery
+	Get() *q.Delivery
 	GetPayload(interface{}) error
 }
 
