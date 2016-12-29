@@ -1,13 +1,5 @@
 package function
 
-type Closer interface {
-	Close()
-}
-
-type FunctionHandler interface {
-	Start(Function) Closer
-}
-
 type InputMessage interface {
 	Body() []byte
 	DecodeBody(interface{})
