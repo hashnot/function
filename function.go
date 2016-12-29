@@ -40,7 +40,7 @@ func StartWithConfig(f Function, config *amqptypes.Configuration) error {
 	return ReadInput(config, ch, f, outChan)
 }
 
-type OutChan chan <- *OutputMessage
+type OutChan chan<- *OutputMessage
 
 func SetupOutput(c *amqptypes.Configuration, ch *amqp.Channel) (OutChan, error) {
 	outChan := make(chan *OutputMessage, 8)
@@ -69,7 +69,7 @@ func ReadInput(config *amqptypes.Configuration, ch *amqp.Channel, f Function, ou
 	}
 
 	for d := range msgs {
-		// TODO recover from panick
+		// TODO recover from panic
 		log.Print("input body: ", string(d.Body))
 		//spew.Fdump(os.Stderr, client)
 
@@ -77,14 +77,14 @@ func ReadInput(config *amqptypes.Configuration, ch *amqp.Channel, f Function, ou
 		err = f.Handle(msg, outChan)
 		if err != nil {
 			// TODO handle retryable errors
-			err2:=d.Nack(false, false)
-			if err2!=nil{
+			err2 := d.Nack(false, false)
+			if err2 != nil {
 				log.Fatal(err2)
 			}
 			config.Errors.Publish(ch, []byte(err.Error()))
-		}else {
-			err2:=d.Ack(false)
-			if err2!=nil{
+		} else {
+			err2 := d.Ack(false)
+			if err2 != nil {
 				log.Fatal(err2)
 			}
 		}
