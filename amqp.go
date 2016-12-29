@@ -12,7 +12,7 @@ type amqpFunctionHandler struct {
 	config  *amqptypes.Configuration
 	channel *amqp.Channel
 
-	stop    chan bool
+	stop chan bool
 }
 
 func Start(f Function) (*amqpFunctionHandler, error) {
@@ -26,7 +26,7 @@ func Start(f Function) (*amqpFunctionHandler, error) {
 }
 
 func StartWithConfig(f Function, config *amqptypes.Configuration) (*amqpFunctionHandler, error) {
-	handler := &amqpFunctionHandler{config:config}
+	handler := &amqpFunctionHandler{config: config}
 	err := handler.init()
 	if err != nil {
 		return nil, err
@@ -35,7 +35,7 @@ func StartWithConfig(f Function, config *amqptypes.Configuration) (*amqpFunction
 	return handler, handler.readInput(f)
 }
 
-func (h*amqpFunctionHandler)Stop() {
+func (h *amqpFunctionHandler) Stop() {
 	h.stop <- false
 
 	close(h.stop)
@@ -70,14 +70,14 @@ func (h *amqpFunctionHandler) readInput(f Function) error {
 	return nil
 }
 
-func (h*amqpFunctionHandler) readInputLoop(f Function, msgs <-chan amqp.Delivery) {
+func (h *amqpFunctionHandler) readInputLoop(f Function, msgs <-chan amqp.Delivery) {
 	for {
 		select {
 		case <-h.stop:
 			log.Print("Received stop signal, ending loop")
 			return
 		case d := <-msgs:
-		// TODO recover from panic
+			// TODO recover from panic
 			log.Print("input body: ", string(d.Body))
 
 			msg := &Message{d}

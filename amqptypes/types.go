@@ -3,8 +3,8 @@ package amqptypes
 import (
 	"errors"
 	"github.com/streadway/amqp"
-	"time"
 	"log"
+	"time"
 )
 
 type Configuration struct {
