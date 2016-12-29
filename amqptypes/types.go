@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/streadway/amqp"
 	"time"
+	"log"
 )
 
 type Configuration struct {
@@ -24,9 +25,6 @@ var defaultError = &Output{
 func (c *Configuration) SetupOutputs() {
 	if c.Errors == nil {
 		c.Errors = defaultError
-	}
-	if c.Output == nil {
-		c.Output = defaultError
 	}
 }
 
@@ -84,6 +82,7 @@ type Publishing struct {
 }
 
 func (o *Output) Publish(ch *amqp.Channel, body []byte) error {
+	log.Print("Publish to ", o.Exchange, "/", o.Key)
 	pub := &amqp.Publishing{
 		Body:      body,
 		Timestamp: time.Now(),

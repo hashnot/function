@@ -1,20 +1,20 @@
 package function
 
-import (
-	"github.com/streadway/amqp"
-)
+type Closer interface {
+	Close()
+}
 
-type OutChan chan<- *OutputMessage
+type FunctionHandler interface {
+	Start(Function) Closer
+}
 
 type InputMessage interface {
-	Get() *amqp.Delivery
-	GetPayload(interface{}) error
+	Body() []byte
+	DecodeBody(interface{})
 }
 
-type OutputMessage struct {
-	Payload interface{}
-}
+type Callback func(...interface{})
 
 type Function interface {
-	Handle(InputMessage, OutChan) error
+	Handle(InputMessage, Callback) error
 }
