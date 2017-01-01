@@ -20,11 +20,9 @@ type TestFunction struct {
 	*testing.T
 }
 
-func (f *TestFunction) Handle(msg InputMessage, out OutChan) error {
+func (f *TestFunction) Handle(msg *Message) ([]*Message, error) {
 	f.T.Log("inside")
-	out <- &OutputMessage{}
-	f.T.Log("response sent")
-	return nil
+	return []*Message{{}}, nil
 }
 
 func TestNoOutput(t *testing.T) {
@@ -51,12 +49,11 @@ func TestNoOutput(t *testing.T) {
 
 	t.Log("start func")
 
-	go func() {
-		err := StartWithConfig(&TestFunction{t}, cfg)
-		if err != nil {
-			t.Error(err)
-		}
-	}()
+	handler, err := StartWithConfig(&TestFunction{t}, cfg)
+	if err != nil {
+		t.Error(err)
+	}
+	defer handler.Stop()
 
 	t.Log("send")
 

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"github.com/hashnot/function/amqp"
 	q "github.com/streadway/amqp"
-	"time"
+	"log"
 )
 
 type Configuration struct {
@@ -27,9 +27,6 @@ var defaultError = &Output{
 func (c *Configuration) SetupOutputs() {
 	if c.Errors == nil {
 		c.Errors = defaultError
-	}
-	if c.Output == nil {
-		c.Output = defaultError
 	}
 }
 
@@ -86,19 +83,7 @@ type Publishing struct {
 	//Body            []byte `yaml:",-"`
 }
 
-func (o *Output) Publish(ch amqp.Channel, body []byte) error {
-	pub := &q.Publishing{
-		Body:      body,
-		Timestamp: time.Now(),
-	}
-
-	p := o.Msg
-	if p != nil {
-		pub.ContentType = p.ContentType
-		pub.ContentEncoding = p.ContentEncoding
-		pub.DeliveryMode = p.DeliveryMode
-		pub.Type = p.Type
-		pub.Body = body
-	}
+func (o *Output) Publish(ch amqp.Channel, pub *q.Publishing) error {
+	log.Print("Publish to ", o.Exchange, "/", o.Key)
 	return ch.Publish(o.Exchange, o.Key, o.Mandatory, o.Immediate, *pub)
 }
