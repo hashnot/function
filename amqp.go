@@ -5,15 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/hashnot/function/amqptypes"
-	"github.com/streadway/amqp"
-	"go/types"
+	"github.com/hashnot/function/amqp"
 	"log"
 	"runtime/debug"
+	"go/types"
+	q "github.com/streadway/amqp"
+
+
+
 )
 
 type amqpFunctionHandler struct {
 	config  *amqptypes.Configuration
-	channel *amqp.Channel
+	channel amqp.Channel
 
 	stop chan bool
 }
@@ -29,6 +33,10 @@ func Start(f Function) (*amqpFunctionHandler, error) {
 }
 
 func StartWithConfig(f Function, config *amqptypes.Configuration) (*amqpFunctionHandler, error) {
+	if config.Dialer == nil {
+		config.Dialer = &amqp.AmqpDialer{}
+	}
+
 	handler := &amqpFunctionHandler{config: config}
 	err := handler.init()
 	if err != nil {
@@ -73,7 +81,7 @@ func (h *amqpFunctionHandler) readInput(f Function) error {
 	return nil
 }
 
-func (h *amqpFunctionHandler) readInputLoop(f Function, msgs <-chan amqp.Delivery) {
+func (h *amqpFunctionHandler) readInputLoop(f Function, msgs <-chan q.Delivery) {
 	for {
 		select {
 		case <-h.stop:
@@ -88,7 +96,7 @@ func (h *amqpFunctionHandler) readInputLoop(f Function, msgs <-chan amqp.Deliver
 	}
 }
 
-func newInvocation(h *amqpFunctionHandler, d *amqp.Delivery) *invocation {
+func newInvocation(h *amqpFunctionHandler, d *q.Delivery) *invocation {
 	return &invocation{
 		handler:  h,
 		results:  make([]*Message, 0, 1),
@@ -101,7 +109,7 @@ type invocation struct {
 	handler  *amqpFunctionHandler
 	results  []*Message
 	errors   []error
-	delivery *amqp.Delivery
+	delivery *q.Delivery
 }
 
 func (i *invocation) Error() string {
@@ -146,7 +154,7 @@ func (i *invocation) handle(f Function) {
 		err = i.delivery.Ack(false)
 	} else {
 		log.Print("nack")
-		err = i.handler.config.Errors.Publish(i.handler.channel, &amqp.Publishing{Body: []byte(i.Error())})
+		err = i.handler.config.Errors.Publish(i.handler.channel, &q.Publishing{Body: []byte(i.Error())})
 		if err != nil {
 			log.Print(err)
 		}
@@ -159,7 +167,7 @@ func (i *invocation) handle(f Function) {
 	}
 }
 
-func newMessage(d *amqp.Delivery) *Message {
+func newMessage(d *q.Delivery) *Message {
 	return &Message{
 		Body:            d.Body,
 		ContentEncoding: d.ContentEncoding,
@@ -172,8 +180,8 @@ func newMessage(d *amqp.Delivery) *Message {
 	}
 }
 
-func (m *Message) toPublishing() *amqp.Publishing {
-	return &amqp.Publishing{
+func (m *Message) toPublishing() *q.Publishing {
+	return &q.Publishing{
 		Body:            m.Body,
 		ContentEncoding: m.ContentEncoding,
 		ContentType:     m.ContentType,
