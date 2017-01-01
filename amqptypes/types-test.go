@@ -11,10 +11,10 @@ type TestDialer struct {
 	Channel *TestChan
 }
 
-func (d*TestDialer) Dial(_ string) (amqp.Connection, error) {
+func (d *TestDialer) Dial(_ string) (amqp.Connection, error) {
 	d.T.Log("Dial")
 	return &TestConn{
-		TestDialer:d,
+		TestDialer: d,
 	}, nil
 }
 
@@ -30,7 +30,7 @@ type TestConn struct {
 	*TestDialer
 }
 
-func (c*TestConn) Channel() (amqp.Channel, error) {
+func (c *TestConn) Channel() (amqp.Channel, error) {
 	c.T.Log("Channel()")
 	return c.TestDialer.Channel, nil
 }

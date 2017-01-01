@@ -4,15 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"github.com/hashnot/function/amqptypes"
 	"github.com/hashnot/function/amqp"
+	"github.com/hashnot/function/amqptypes"
+	q "github.com/streadway/amqp"
+	"go/types"
 	"log"
 	"runtime/debug"
-	"go/types"
-	q "github.com/streadway/amqp"
-
-
-
 )
 
 type amqpFunctionHandler struct {
