@@ -3,9 +3,12 @@ package function
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"github.com/hashnot/function/amqptypes"
 	"github.com/streadway/amqp"
+	"go/types"
 	"log"
+	"runtime/debug"
 )
 
 type amqpFunctionHandler struct {
@@ -80,21 +83,25 @@ func (h *amqpFunctionHandler) readInputLoop(f Function, msgs <-chan amqp.Deliver
 			// TODO recover from panic
 			log.Print("input body: ", string(d.Body))
 
-			msg := &Message{d}
-			i := &invocation{
-				handler: h,
-				results: make([][]byte, 0, 1),
-				errors:  make([]error, 0, 1),
-			}
-			i.handle(f, msg)
+			newInvocation(h, &d).handle(f)
 		}
 	}
 }
 
+func newInvocation(h *amqpFunctionHandler, d *amqp.Delivery) *invocation {
+	return &invocation{
+		handler:  h,
+		results:  make([]*Message, 0, 1),
+		errors:   make([]error, 0, 1),
+		delivery: d,
+	}
+}
+
 type invocation struct {
-	handler *amqpFunctionHandler
-	results [][]byte
-	errors  []error
+	handler  *amqpFunctionHandler
+	results  []*Message
+	errors   []error
+	delivery *amqp.Delivery
 }
 
 func (i *invocation) Error() string {
@@ -106,15 +113,15 @@ func (i *invocation) Error() string {
 	return result.String()
 }
 
-func (i *invocation) handle(f Function, msg *Message) {
+func (i *invocation) handle(f Function) {
 	err := func() (err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				log.Print(r)
-				err = r.(error)
+				err = errors.New(r.(error).Error() + "\n" + string(debug.Stack()))
 			}
 		}()
-		err = f.Handle(msg, i.functionResultCallback)
+		i.results, err = f.Handle(newMessage(i.delivery))
 		return
 	}()
 
@@ -123,9 +130,9 @@ func (i *invocation) handle(f Function, msg *Message) {
 	}
 
 	if len(i.errors) == 0 {
-		for _, buf := range i.results {
+		for _, msg := range i.results {
 			output := i.handler.config.Output
-			err = output.Publish(i.handler.channel, buf)
+			err = output.Publish(i.handler.channel, msg.toPublishing())
 			if err != nil {
 				i.errors = append(i.errors, err)
 				break
@@ -136,50 +143,58 @@ func (i *invocation) handle(f Function, msg *Message) {
 
 	if len(i.errors) == 0 {
 		log.Print("ack")
-		err = msg.delivery.Ack(false)
+		err = i.delivery.Ack(false)
 	} else {
 		log.Print("nack")
-		err = i.handler.config.Errors.Publish(i.handler.channel, []byte(i.Error()))
+		err = i.handler.config.Errors.Publish(i.handler.channel, &amqp.Publishing{Body: []byte(i.Error())})
 		if err != nil {
 			log.Print(err)
 		}
 		// TODO handle retryable errors
-		err = msg.delivery.Nack(false, false)
+		err = i.delivery.Nack(false, false)
 	}
 
 	if err != nil {
 		log.Print("Problem with (n)ack ", err)
 	}
-
 }
 
-func (i *invocation) functionResultCallback(data ...interface{}) {
-	for _, o := range data {
-		buf, err := convert(o)
+func newMessage(d *amqp.Delivery) *Message {
+	return &Message{
+		Body:            d.Body,
+		ContentEncoding: d.ContentEncoding,
+		ContentType:     d.ContentType,
+		CorrelationId:   d.CorrelationId,
+		Headers:         d.Headers,
+		MessageId:       d.MessageId,
+		Timestamp:       d.Timestamp,
+		Type:            d.Type,
+	}
+}
 
-		if err == nil {
-			i.results = append(i.results, buf)
-		} else {
-			i.errors = append(i.errors, err)
-		}
+func (m *Message) toPublishing() *amqp.Publishing {
+	return &amqp.Publishing{
+		Body:            m.Body,
+		ContentEncoding: m.ContentEncoding,
+		ContentType:     m.ContentType,
+		CorrelationId:   m.CorrelationId,
+		Headers:         m.Headers,
+		MessageId:       m.MessageId,
+		Timestamp:       m.Timestamp,
+		Type:            m.Type,
 	}
 }
 
 // TODO convert directly to Publishing
 func convert(object interface{}) ([]byte, error) {
-	return json.Marshal(object)
-}
-
-type Message struct {
-	delivery amqp.Delivery
-}
-
-func (m *Message) Body() []byte {
-	return m.delivery.Body
-}
-
-func (m *Message) DecodeBody(t interface{}) {
-	if err := json.Unmarshal(m.delivery.Body, t); err != nil {
-		panic(err)
+	switch object.(type) {
+	case types.Nil:
+		return []byte{}, nil
+	case []byte:
+		return object.([]byte), nil
+	case string:
+		return []byte(object.(string)), nil
+	default:
+		return json.Marshal(object)
 	}
 }

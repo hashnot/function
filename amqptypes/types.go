@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/streadway/amqp"
 	"log"
-	"time"
 )
 
 type Configuration struct {
@@ -81,20 +80,7 @@ type Publishing struct {
 	//Body            []byte `yaml:",-"`
 }
 
-func (o *Output) Publish(ch *amqp.Channel, body []byte) error {
+func (o *Output) Publish(ch *amqp.Channel, pub *amqp.Publishing) error {
 	log.Print("Publish to ", o.Exchange, "/", o.Key)
-	pub := &amqp.Publishing{
-		Body:      body,
-		Timestamp: time.Now(),
-	}
-
-	p := o.Msg
-	if p != nil {
-		pub.ContentType = p.ContentType
-		pub.ContentEncoding = p.ContentEncoding
-		pub.DeliveryMode = p.DeliveryMode
-		pub.Type = p.Type
-		pub.Body = body
-	}
 	return ch.Publish(o.Exchange, o.Key, o.Mandatory, o.Immediate, *pub)
 }
