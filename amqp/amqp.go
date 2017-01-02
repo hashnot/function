@@ -1,7 +1,7 @@
 package amqp
 
 import (
-	q "github.com/streadway/amqp"
+	"github.com/streadway/amqp"
 )
 
 type Closer interface {
@@ -11,13 +11,13 @@ type Closer interface {
 // Dialer
 
 type Dialer interface {
-	DialConfig(url string, config q.Config) (Connection, error)
+	DialConfig(url string, config amqp.Config) (Connection, error)
 }
 
 type AmqpDialer struct{}
 
-func (d *AmqpDialer) DialConfig(addr string, config q.Config) (Connection, error) {
-	c, err := q.DialConfig(addr, config)
+func (d *AmqpDialer) DialConfig(addr string, config amqp.Config) (Connection, error) {
+	c, err := amqp.DialConfig(addr, config)
 	return &amqpConnection{c}, err
 }
 
@@ -29,7 +29,7 @@ type Connection interface {
 }
 
 type amqpConnection struct {
-	c *q.Connection
+	c *amqp.Connection
 }
 
 func (c *amqpConnection) Close() error {
@@ -45,22 +45,22 @@ func (c *amqpConnection) Channel() (Channel, error) {
 
 type Channel interface {
 	Closer
-	Publish(exchange, key string, mandatory, immediate bool, msg q.Publishing) error
-	Consume(queue, consumer string, autoAck, exclusive, noLocal, noWait bool, args q.Table) (<-chan q.Delivery, error)
+	Publish(exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error
+	Consume(queue, consumer string, autoAck, exclusive, noLocal, noWait bool, args amqp.Table) (<-chan amqp.Delivery, error)
 }
 
 type amqpChannel struct {
-	c *q.Channel
+	c *amqp.Channel
 }
 
 func (c *amqpChannel) Close() error {
 	return c.c.Close()
 }
 
-func (c *amqpChannel) Publish(exchange, key string, mandatory, immediate bool, msg q.Publishing) error {
+func (c *amqpChannel) Publish(exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error {
 	return c.c.Publish(exchange, key, mandatory, immediate, msg)
 }
 
-func (c *amqpChannel) Consume(queue, consumer string, autoAck, exclusive, noLocal, noWait bool, args q.Table) (<-chan q.Delivery, error) {
+func (c *amqpChannel) Consume(queue, consumer string, autoAck, exclusive, noLocal, noWait bool, args amqp.Table) (<-chan amqp.Delivery, error) {
 	return c.c.Consume(queue, consumer, autoAck, exclusive, noLocal, noWait, args)
 }
