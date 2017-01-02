@@ -11,7 +11,7 @@ type TestDialer struct {
 	Channel *TestChan
 }
 
-func (d *TestDialer) Dial(_ string) (amqp.Connection, error) {
+func (d *TestDialer) DialConfig(string, q.Config) (amqp.Connection, error) {
 	d.T.Log("Dial")
 	return &TestConn{
 		TestDialer: d,

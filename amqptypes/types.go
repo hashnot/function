@@ -5,15 +5,14 @@ import (
 	"github.com/hashnot/function/amqp"
 	q "github.com/streadway/amqp"
 	"log"
+	"time"
 )
 
 type Configuration struct {
-	Url    string  `yaml:"url"`
-	Input  *Queue  `yaml:"input"`
-	Output *Output `yaml:"output"`
-	Errors *Output `yaml:"errors"`
-
-	amqp.Dialer
+	Input    *Queue   `yaml:"input"`
+	Output   *Output  `yaml:"output"`
+	Errors   *Output  `yaml:"errors"`
+	DialConf DialConf `yaml:"server"`
 }
 
 var defaultError = &Output{
@@ -24,14 +23,37 @@ var defaultError = &Output{
 	},
 }
 
-func (c *Configuration) SetupOutputs() {
+func (c *Configuration) Init() {
 	if c.Errors == nil {
 		c.Errors = defaultError
 	}
+	c.DialConf.init()
 }
 
-func (c *Configuration) Dial() (amqp.Connection, error) {
-	return c.Dialer.Dial(c.Url)
+type DialConf struct {
+	Url               string `yaml:"url"`
+	Vhost             string
+	HeartBeat         time.Duration
+	ConnectionTimeout time.Duration
+
+	Dialer amqp.Dialer
+}
+
+func (d *DialConf) init() {
+	if d.Dialer == nil {
+		d.Dialer = &amqp.AmqpDialer{}
+	}
+	if d.HeartBeat == 0 {
+		d.HeartBeat = defaultHeartbeat
+	}
+}
+
+func (d DialConf) Dial() (amqp.Connection, error) {
+	return d.Dialer.DialConfig(d.Url, q.Config{
+		Dial:      d.dialFunc,
+		Heartbeat: d.HeartBeat,
+		Vhost:     d.Vhost,
+	})
 }
 
 type Queue struct {

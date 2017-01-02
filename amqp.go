@@ -30,10 +30,6 @@ func Start(f Function) (*amqpFunctionHandler, error) {
 }
 
 func StartWithConfig(f Function, config *amqptypes.Configuration) (*amqpFunctionHandler, error) {
-	if config.Dialer == nil {
-		config.Dialer = &amqp.AmqpDialer{}
-	}
-
 	handler := &amqpFunctionHandler{config: config}
 	err := handler.init()
 	if err != nil {
@@ -50,11 +46,11 @@ func (h *amqpFunctionHandler) Stop() {
 }
 
 func (h *amqpFunctionHandler) init() error {
-	h.config.SetupOutputs()
+	h.config.Init()
 
 	h.stop = make(chan bool, 1)
 
-	conn, err := h.config.Dial()
+	conn, err := h.config.DialConf.Dial()
 	if err != nil {
 		return err
 	}

@@ -40,9 +40,11 @@ func TestNoOutput(t *testing.T) {
 	outExchange := "_OUT_EXCHANGE_"
 	cfg := &amqptypes.Configuration{
 		Input: &amqptypes.Queue{Name: "test"},
-		Dialer: &amqptypes.TestDialer{
-			Channel: &channel,
-			T:       t,
+		DialConf: amqptypes.DialConf{
+			Dialer: &amqptypes.TestDialer{
+				Channel: &channel,
+				T:       t,
+			},
 		},
 		Output: &amqptypes.Output{Exchange: outExchange},
 	}

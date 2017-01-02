@@ -11,13 +11,13 @@ type Closer interface {
 // Dialer
 
 type Dialer interface {
-	Dial(addr string) (Connection, error)
+	DialConfig(url string, config q.Config) (Connection, error)
 }
 
 type AmqpDialer struct{}
 
-func (d *AmqpDialer) Dial(addr string) (Connection, error) {
-	c, err := q.Dial(addr)
+func (d *AmqpDialer) DialConfig(addr string, config q.Config) (Connection, error) {
+	c, err := q.DialConfig(addr, config)
 	return &amqpConnection{c}, err
 }
 
