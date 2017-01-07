@@ -9,9 +9,9 @@ import (
 )
 
 type Configuration struct {
-	Input    *Queue   `yaml:"input"`
-	Output   *Output  `yaml:"output"`
-	Errors   *Output  `yaml:"errors"`
+	Input    *Queue
+	Output   *Output
+	Errors   *Output
 	DialConf DialConf `yaml:"server"`
 }
 
@@ -31,7 +31,7 @@ func (c *Configuration) Init() {
 }
 
 type DialConf struct {
-	Url               string `yaml:"url"`
+	Url               string
 	Vhost             string
 	HeartBeat         time.Duration
 	ConnectionTimeout time.Duration
@@ -57,13 +57,13 @@ func (d DialConf) Dial() (amqp.Connection, error) {
 }
 
 type Queue struct {
-	Name      string  `yaml:"name"`
-	Consumer  string  `yaml:"consumer"`
-	AutoAck   bool    `yaml:"autoAck"`
-	Exclusive bool    `yaml:"exclusive"`
-	NoLocal   bool    `yaml:"noLocal"`
-	NoWait    bool    `yaml:"noWait"`
-	Args      q.Table `yaml:"args"`
+	Name      string
+	Consumer  string
+	AutoAck   bool `yaml:"autoAck"`
+	Exclusive bool
+	NoLocal   bool `yaml:"noLocal"`
+	NoWait    bool `yaml:"noWait"`
+	Args      q.Table
 }
 
 func (q *Queue) Consume(ch amqp.Channel) (<-chan q.Delivery, error) {
@@ -75,10 +75,10 @@ func (q *Queue) Consume(ch amqp.Channel) (<-chan q.Delivery, error) {
 }
 
 type Output struct {
-	Exchange  string      `yaml:"exchange"`
-	Key       string      `yaml:"key"`
-	Mandatory bool        `yaml:"mandatory"`
-	Immediate bool        `yaml:"immediate"`
+	Exchange  string
+	Key       string
+	Mandatory bool
+	Immediate bool
 	Msg       *Publishing `yaml:"publishing"`
 }
 
