@@ -108,7 +108,7 @@ type invocation struct {
 func (i *invocation) Error() string {
 	result := new(bytes.Buffer)
 	for _, err := range i.errors {
-		result.Write([]byte(err.Error()))
+		result.WriteString(err.Error())
 		result.WriteRune('\n')
 	}
 	return result.String()
