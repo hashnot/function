@@ -2,15 +2,17 @@ package amqptypes
 
 import (
 	"errors"
-	"github.com/streadway/amqp"
+	"github.com/hashnot/function/amqp"
+	q "github.com/streadway/amqp"
 	"log"
+	"time"
 )
 
 type Configuration struct {
-	Url     string `yaml:"url"`
-	Input   *Queue `yaml:"input"`
-	*Output `yaml:"output"`
-	Errors  *Output `yaml:"errors"`
+	Input    *Queue
+	Output   *Output
+	Errors   *Output
+	DialConf DialConf `yaml:"server"`
 }
 
 var defaultError = &Output{
@@ -21,27 +23,53 @@ var defaultError = &Output{
 	},
 }
 
-func (c *Configuration) SetupOutputs() {
+func (c *Configuration) Init() {
 	if c.Errors == nil {
 		c.Errors = defaultError
 	}
+	c.DialConf.init()
 }
 
-func (c *Configuration) Dial() (*amqp.Connection, error) {
-	return amqp.Dial(c.Url)
+type DialConf struct {
+	Url               string
+	Vhost             string
+	HeartBeat         time.Duration
+	ConnectionTimeout time.Duration
+
+	Dialer amqp.Dialer
+}
+
+func (d *DialConf) init() {
+	if d.Dialer == nil {
+		d.Dialer = &amqp.AmqpDialer{}
+	}
+	if d.HeartBeat == 0 {
+		d.HeartBeat = defaultHeartbeat
+	}
+	if d.ConnectionTimeout == 0 {
+		d.ConnectionTimeout = defaultConnTimeout
+	}
+}
+
+func (d DialConf) Dial() (amqp.Connection, error) {
+	return d.Dialer.DialConfig(d.Url, q.Config{
+		Dial:      d.dialFunc,
+		Heartbeat: d.HeartBeat,
+		Vhost:     d.Vhost,
+	})
 }
 
 type Queue struct {
-	Name      string     `yaml:"name"`
-	Consumer  string     `yaml:"consumer"`
-	AutoAck   bool       `yaml:"autoAck"`
-	Exclusive bool       `yaml:"exclusive"`
-	NoLocal   bool       `yaml:"noLocal"`
-	NoWait    bool       `yaml:"noWait"`
-	Args      amqp.Table `yaml:"args"`
+	Name      string
+	Consumer  string
+	AutoAck   bool `yaml:"autoAck"`
+	Exclusive bool
+	NoLocal   bool `yaml:"noLocal"`
+	NoWait    bool `yaml:"noWait"`
+	Args      q.Table
 }
 
-func (q *Queue) Consume(ch *amqp.Channel) (<-chan amqp.Delivery, error) {
+func (q *Queue) Consume(ch amqp.Channel) (<-chan q.Delivery, error) {
 	if q.Name == "" {
 		return nil, errors.New("Undefined queue")
 	}
@@ -50,10 +78,10 @@ func (q *Queue) Consume(ch *amqp.Channel) (<-chan amqp.Delivery, error) {
 }
 
 type Output struct {
-	Exchange  string      `yaml:"exchange"`
-	Key       string      `yaml:"key"`
-	Mandatory bool        `yaml:"mandatory"`
-	Immediate bool        `yaml:"immediate"`
+	Exchange  string
+	Key       string
+	Mandatory bool
+	Immediate bool
 	Msg       *Publishing `yaml:"publishing"`
 }
 
@@ -80,7 +108,7 @@ type Publishing struct {
 	//Body            []byte `yaml:",-"`
 }
 
-func (o *Output) Publish(ch *amqp.Channel, pub *amqp.Publishing) error {
+func (o *Output) Publish(ch amqp.Channel, pub *q.Publishing) error {
 	log.Print("Publish to ", o.Exchange, "/", o.Key)
 	return ch.Publish(o.Exchange, o.Key, o.Mandatory, o.Immediate, *pub)
 }
