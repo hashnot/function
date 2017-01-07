@@ -6,6 +6,7 @@ import (
 )
 
 const defaultHeartbeat = 10 * time.Second
+const defaultConnTimeout = 30 * time.Second
 
 func (d *DialConf) dialFunc(network, addr string) (net.Conn, error) {
 	conn, err := net.DialTimeout(network, addr, d.ConnectionTimeout)

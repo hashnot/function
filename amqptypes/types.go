@@ -46,6 +46,9 @@ func (d *DialConf) init() {
 	if d.HeartBeat == 0 {
 		d.HeartBeat = defaultHeartbeat
 	}
+	if d.ConnectionTimeout == 0 {
+		d.ConnectionTimeout = defaultConnTimeout
+	}
 }
 
 func (d DialConf) Dial() (amqp.Connection, error) {
