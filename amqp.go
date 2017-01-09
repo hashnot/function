@@ -147,7 +147,11 @@ func (i *invocation) handle(f Function) {
 		err = i.delivery.Ack(false)
 	} else {
 		log.Print("nack")
-		err = i.handler.config.Errors.Publish(i.handler.channel, &q.Publishing{Body: []byte(i.Error())})
+		err = i.handler.config.Errors.Publish(i.handler.channel, &q.Publishing{
+			Body:        []byte(i.Error()),
+			ContentType: "text/plain",
+			Type:        "app/error",
+		})
 		if err != nil {
 			log.Print(err)
 		}
