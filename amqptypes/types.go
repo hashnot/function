@@ -110,11 +110,12 @@ type Publishing struct {
 }
 
 func (o *Output) Publish(ch amqp.Channel, pub *q.Publishing) error {
-	log.Print("Publish to ", o.Exchange, "/", o.Key)
 	pub.AppId = os.Args[0]
 	if pub.Timestamp == (time.Time{}) {
 		pub.Timestamp = time.Now()
 	}
 
+	log.Print("Publish to ", o.Exchange, "/", o.Key)
+	log.Printf("%#v", pub)
 	return ch.Publish(o.Exchange, o.Key, o.Mandatory, o.Immediate, *pub)
 }
