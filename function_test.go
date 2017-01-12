@@ -20,9 +20,10 @@ type TestFunction struct {
 	*testing.T
 }
 
-func (f *TestFunction) Handle(msg *Message) ([]*Message, error) {
+func (f *TestFunction) Handle(msg *Message, p Publisher) error {
 	f.T.Log("inside")
-	return []*Message{{}}, nil
+	p.Publish("result")
+	return nil
 }
 
 func TestNoOutput(t *testing.T) {
@@ -53,7 +54,7 @@ func TestNoOutput(t *testing.T) {
 
 	handler, err := StartWithConfig(&TestFunction{t}, cfg)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	defer handler.Stop()
 
@@ -64,11 +65,12 @@ func TestNoOutput(t *testing.T) {
 	t.Log("wait for result")
 	result := <-out
 
-	t.Log(result)
+	t.Log("result: ", result)
 
 	if result.Exchange != outExchange {
 		t.Error("Exchange ", result.Exchange)
 	}
 
 	close(in)
+	close(out)
 }

@@ -18,7 +18,7 @@ type Configuration struct {
 
 var defaultError = &Output{
 	Key: "global.error",
-	Msg: &Publishing{
+	Msg: &PublishingTemplate{
 		Type:        "Error",
 		ContentType: "text/plain",
 	},
@@ -83,30 +83,23 @@ type Output struct {
 	Key       string
 	Mandatory bool
 	Immediate bool
-	Msg       *Publishing `yaml:"publishing"`
+	Msg       *PublishingTemplate `yaml:"template"`
 }
 
-type Publishing struct {
+type PublishingTemplate struct {
 	// Application or exchange specific fields,
 	// the headers exchange will inspect this field.
-	//Headers         amqp.Table
-
-	// Properties
-	ContentType     string // MIME content type
-	ContentEncoding string // MIME content encoding
-	DeliveryMode    uint8  // Transient (0 or 1) or Persistent (2)
-	//Priority        uint8     // 0 to 9
-	CorrelationId string // correlation identifier
-	//ReplyTo         string    // address to to reply to (ex: RPC)
-	//Expiration      string    // message expiration spec
-	//MessageId       string    // message identifier
-	//Timestamp       time.Time // message timestamp
-	Type string // message type name
-	//UserId          string    // creating user id - ex: "guest"
-	//AppId           string    // creating application id
-
-	// The application specific payload of the message
-	//Body            []byte `yaml:",-"`
+	Headers         map[string]interface{}
+	ContentType     string        `yaml:"contentType"`     // MIME content type
+	ContentEncoding string        `yaml:"contentEncoding"` // MIME content encoding
+	Persistent      *DeliveryMode // Transient (false) or Persistent (true)
+	Priority        *uint8        // 0 to 9
+	CorrelationId   string        `yaml:"correlationId"` // correlation identifier
+	ReplyTo         string        `yaml:"replyTo"`       // address to to reply to (ex: RPC)
+	Expiration      time.Duration // message expiration (truncated to millis)
+	Type            string        // message type name
+	UserId          string        `yaml:"userId"` // creating user id - ex: "guest"
+	AppId           string        `yaml:"appId"`  // creating application id
 }
 
 func (o *Output) Publish(ch amqp.Channel, pub *q.Publishing) error {
@@ -118,4 +111,14 @@ func (o *Output) Publish(ch amqp.Channel, pub *q.Publishing) error {
 	log.Print("Publish to ", o.Exchange, "/", o.Key)
 	log.Printf("%#v", pub)
 	return ch.Publish(o.Exchange, o.Key, o.Mandatory, o.Immediate, *pub)
+}
+
+type DeliveryMode bool
+
+func (m DeliveryMode) ToInt() uint8 {
+	if m {
+		return 2
+	} else {
+		return 1
+	}
 }

@@ -1,7 +1,6 @@
 package function
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"github.com/hashnot/function/amqp"
@@ -9,7 +8,10 @@ import (
 	q "github.com/streadway/amqp"
 	"go/types"
 	"log"
+	"reflect"
 	"runtime/debug"
+	"strconv"
+	"time"
 )
 
 type amqpFunctionHandler struct {
@@ -92,105 +94,131 @@ func (h *amqpFunctionHandler) readInputLoop(f Function, msgs <-chan q.Delivery) 
 func newInvocation(h *amqpFunctionHandler, d *q.Delivery) *invocation {
 	return &invocation{
 		handler:  h,
-		results:  make([]*Message, 0, 1),
-		errors:   make([]error, 0, 1),
 		delivery: d,
 	}
 }
 
 type invocation struct {
 	handler  *amqpFunctionHandler
-	results  []*Message
-	errors   []error
 	delivery *q.Delivery
-}
-
-func (i *invocation) Error() string {
-	result := new(bytes.Buffer)
-	for _, err := range i.errors {
-		result.WriteString(err.Error())
-		result.WriteRune('\n')
-	}
-	return result.String()
 }
 
 func (i *invocation) handle(f Function) {
 	err := func() (err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Print(r)
-				err = errors.New(r.(error).Error() + "\n" + string(debug.Stack()))
+				msg := r.(error).Error() + "\n" + string(debug.Stack())
+				log.Print("Error in function ", msg)
+				err = errors.New(msg)
 			}
 		}()
-		i.results, err = f.Handle(newMessage(i.delivery))
+		err = f.Handle((*Message)(i.delivery), i)
 		return
 	}()
 
 	if err != nil {
-		i.errors = append(i.errors, err)
-	}
-
-	if len(i.errors) == 0 {
-		for _, msg := range i.results {
-			output := i.handler.config.Output
-			err = output.Publish(i.handler.channel, msg.toPublishing())
-			if err != nil {
-				i.errors = append(i.errors, err)
-				break
-			}
+		// TODO handle retryable errors
+		log.Print("nack")
+		if err := i.delivery.Reject(false); err != nil {
+			log.Print("Error rejecting message ", err)
 		}
 
-	}
+		p := i.NewFrom(i.handler.config.Errors.Msg)
+		p.Body = []byte(err.Error())
 
-	if len(i.errors) == 0 {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Print("Error while sending error message ", r)
+				}
+			}()
+			i.Publish(p)
+			return
+		}()
+	} else {
 		log.Print("ack")
 		err = i.delivery.Ack(false)
-	} else {
-		log.Print("nack")
-		err = i.handler.config.Errors.Publish(i.handler.channel, &q.Publishing{
-			Body:        []byte(i.Error()),
-			ContentType: "text/plain",
-			Type:        "app/error",
-		})
-		if err != nil {
-			log.Print(err)
-		}
-		// TODO handle retryable errors
-		err = i.delivery.Nack(false, false)
 	}
+}
 
+func (i *invocation) Publish(v interface{}) {
+	var p *q.Publishing
+	switch v.(type) {
+	case q.Publishing:
+		log.Print("Publishing value instead of pointer")
+		t := v.(q.Publishing)
+		p = &t
+	case *q.Publishing:
+		p = v.(*q.Publishing)
+	default:
+		p = i.New()
+		i.encodeBody(v, p)
+	}
+	err := i.handler.config.Output.Publish(i.handler.channel, p)
 	if err != nil {
-		log.Print("Problem with (n)ack ", err)
+		panic(err)
 	}
 }
 
-func newMessage(d *q.Delivery) *Message {
-	return &Message{
-		Body:            d.Body,
-		ContentEncoding: d.ContentEncoding,
-		ContentType:     d.ContentType,
-		CorrelationId:   d.CorrelationId,
-		Headers:         d.Headers,
-		MessageId:       d.MessageId,
-		Timestamp:       d.Timestamp,
-		Type:            d.Type,
-	}
+func (i *invocation) New() *q.Publishing {
+	return i.NewFrom(i.handler.config.Output.Msg)
 }
 
-func (m *Message) toPublishing() *q.Publishing {
+func (i *invocation) NewFrom(t *amqptypes.PublishingTemplate) *q.Publishing {
+	d := i.delivery
+
+	if t == nil {
+		log.Print("Using empty template")
+		t = &amqptypes.PublishingTemplate{}
+	}
+
+	headers := make(q.Table)
+
+	if t.Headers != nil {
+		AddAll(t.Headers, headers)
+	}
+
+	var deliveryMode uint8
+	if t.Persistent != nil {
+		deliveryMode = t.Persistent.ToInt()
+	} else {
+		deliveryMode = d.DeliveryMode
+	}
+
+	var priority uint8
+	if t.Priority != nil {
+		priority = *t.Priority
+	} else {
+		priority = d.Priority
+	}
+
+	var replyTo string
+	if t.ReplyTo != "" {
+		replyTo = t.ReplyTo
+	} else {
+		replyTo = d.ReplyTo
+	}
+
+	var expiration string
+	if t.Expiration != 0 {
+		expiration = strconv.FormatInt(t.Expiration.Nanoseconds() / 1000000, 10) //millis
+	}
+
 	return &q.Publishing{
-		Body:            m.Body,
-		ContentEncoding: m.ContentEncoding,
-		ContentType:     m.ContentType,
-		CorrelationId:   m.CorrelationId,
-		Headers:         m.Headers,
-		MessageId:       m.MessageId,
-		Timestamp:       m.Timestamp,
-		Type:            m.Type,
+		AppId:           t.AppId,
+		ContentEncoding: t.ContentEncoding,
+		ContentType:     t.ContentType,
+		DeliveryMode:    deliveryMode,
+		Expiration:      expiration,
+		Headers:         q.Table(headers),
+		Priority:        priority,
+		ReplyTo:         replyTo,
+		Timestamp:       time.Now(),
+		Type:            t.Type,
+		UserId:          t.UserId,
 	}
 }
 
-// TODO convert directly to Publishing
 func convert(object interface{}) ([]byte, error) {
 	switch object.(type) {
 	case types.Nil:
@@ -201,5 +229,17 @@ func convert(object interface{}) ([]byte, error) {
 		return []byte(object.(string)), nil
 	default:
 		return json.Marshal(object)
+	}
+}
+
+func (i *invocation) encodeBody(o interface{}, p *q.Publishing) {
+	buf, err := convert(o)
+	if err != nil {
+		panic(err)
+	}
+
+	p.Body = buf
+	if p.Type == "" {
+		p.Type = reflect.TypeOf(o).String()
 	}
 }

@@ -2,24 +2,15 @@ package function
 
 import (
 	"encoding/json"
-	"reflect"
-	"time"
+	"github.com/hashnot/function/amqptypes"
+	"github.com/streadway/amqp"
 )
 
 type Function interface {
-	Handle(*Message) ([]*Message, error)
+	Handle(*Message, Publisher) error
 }
 
-type Message struct {
-	Body            []byte
-	ContentEncoding string                 // MIME content encoding
-	ContentType     string                 // MIME content type
-	CorrelationId   string                 // application use - correlation identifier
-	Headers         map[string]interface{} // see amqp.Table for allowed value types
-	MessageId       string                 // application use - message identifier
-	Timestamp       time.Time              // application use - message timestamp
-	Type            string                 // application use - message type name
-}
+type Message amqp.Delivery
 
 func (m *Message) DecodeBody(o interface{}) {
 	if err := json.Unmarshal(m.Body, o); err != nil {
@@ -27,15 +18,19 @@ func (m *Message) DecodeBody(o interface{}) {
 	}
 }
 
-func (m *Message) EncodeBody(o interface{}) {
-	buf, err := convert(o)
-	if err != nil {
-		panic(err)
-	}
+type Publisher interface {
+	// Create Publishing object with fields preset from the output template
+	New() *amqp.Publishing
 
-	m.Body = buf
-	if m.Type == "" {
-		t := reflect.TypeOf(o)
-		m.Type = t.PkgPath() + "." + t.Name()
+	NewFrom(*amqptypes.PublishingTemplate) *amqp.Publishing
+
+	// Accept Publishing or any object that can be marshalled to be used as body.
+	// Should probably panic on any error, the panic will be recovered in handler function
+	Publish(object interface{})
+}
+
+func AddAll(from, to map[string]interface{}){
+	for k, v := range from {
+		to[k] = v
 	}
 }
