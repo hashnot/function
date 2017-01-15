@@ -1,6 +1,7 @@
 package function
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"github.com/hashnot/function/amqp"
@@ -124,12 +125,16 @@ func (i *invocation) handle(f Function) {
 		}
 
 		p := i.NewFrom(i.handler.config.Errors.Msg)
-		p.Body = []byte(err.Error())
+		errBody := bytes.NewBuffer([]byte(err.Error()))
+		errBody.WriteString("\nIncoming message:\n")
+		DumpDeliveryMeta(i.delivery, errBody)
+		p.Body = errBody.Bytes()
 
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
 					log.Print("Error while sending error message ", r)
+					log.Print(p.Body)
 				}
 			}()
 			i.Publish(p)
@@ -201,7 +206,7 @@ func (i *invocation) NewFrom(t *amqptypes.PublishingTemplate) *q.Publishing {
 
 	var expiration string
 	if t.Expiration != 0 {
-		expiration = strconv.FormatInt(t.Expiration.Nanoseconds() / 1000000, 10) //millis
+		expiration = strconv.FormatInt(t.Expiration.Nanoseconds()/1000000, 10) //millis
 	}
 
 	return &q.Publishing{

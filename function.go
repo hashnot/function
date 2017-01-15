@@ -29,7 +29,7 @@ type Publisher interface {
 	Publish(object interface{})
 }
 
-func AddAll(from, to map[string]interface{}){
+func AddAll(from, to map[string]interface{}) {
 	for k, v := range from {
 		to[k] = v
 	}
