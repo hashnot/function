@@ -44,6 +44,32 @@ func DumpProperties(d *amqp.Delivery) map[string]interface{} {
 	return m
 }
 
+func DumpPublishingProperties(p *amqp.Publishing) map[string]interface{} {
+	m := make(map[string]interface{})
+
+	addStrIfNotEmpty("appId", p.AppId, m)
+	addStrIfNotEmpty("contentEncoding", p.ContentEncoding, m)
+	addStrIfNotEmpty("contentType", p.ContentType, m)
+	addStrIfNotEmpty("correlationId", p.CorrelationId, m)
+	if p.DeliveryMode != 0 {
+		m["deliveryMode"] = p.DeliveryMode
+	}
+	addStrIfNotEmpty("expiration", p.Expiration, m)
+	addStrIfNotEmpty("messageId", p.MessageId, m)
+	if p.Priority != 0 {
+		m["priority"] = p.Priority
+	}
+
+	addStrIfNotEmpty("replyTo", p.ReplyTo, m)
+	if (p.Timestamp != time.Time{}) {
+		m["timestamp"] = p.Timestamp
+	}
+	addStrIfNotEmpty("type", p.Type, m)
+	addStrIfNotEmpty("userId", p.UserId, m)
+
+	return m
+}
+
 func addStrIfNotEmpty(key, value string, dst map[string]interface{}) {
 	if value != "" {
 		dst[key] = value
@@ -52,6 +78,18 @@ func addStrIfNotEmpty(key, value string, dst map[string]interface{}) {
 
 func DumpDeliveryMeta(d *amqp.Delivery, w io.Writer) {
 	props := DumpProperties(d)
+	if len(props) != 0 {
+		fmt.Fprintln(w, "Properties:")
+		printMap(props, w)
+	}
+	if len(d.Headers) != 0 {
+		fmt.Fprintln(w, "Headers:")
+		printMap(d.Headers, w)
+	}
+}
+
+func DumpPublishingMeta(d *amqp.Publishing, w io.Writer) {
+	props := DumpPublishingProperties(d)
 	if len(props) != 0 {
 		fmt.Fprintln(w, "Properties:")
 		printMap(props, w)

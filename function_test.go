@@ -5,6 +5,7 @@ import (
 	q "github.com/streadway/amqp"
 	//_ "net/http"
 	//_ "net/http/pprof"
+	at "github.com/hashnot/function/amqptypes/amqptest"
 	"testing"
 )
 
@@ -29,11 +30,11 @@ func (f *TestFunction) Handle(msg *Message, p Publisher) error {
 func TestNoOutput(t *testing.T) {
 
 	t.Log("start")
-	out := make(chan *amqptypes.TestOutput, 1)
+	out := make(chan *at.TestOutput, 1)
 	in := make(chan q.Delivery, 1)
 
 	t.Log("mk cfg")
-	channel := amqptypes.TestChan{
+	channel := at.TestChan{
 		T:      t,
 		Input:  in,
 		Output: out,
@@ -42,7 +43,7 @@ func TestNoOutput(t *testing.T) {
 	cfg := &amqptypes.Configuration{
 		Input: &amqptypes.Queue{Name: "test"},
 		DialConf: amqptypes.DialConf{
-			Dialer: &amqptypes.TestDialer{
+			Dialer: &at.TestDialer{
 				Channel: &channel,
 				T:       t,
 			},
@@ -65,12 +66,39 @@ func TestNoOutput(t *testing.T) {
 	t.Log("wait for result")
 	result := <-out
 
-	t.Log("result: ", result)
-
 	if result.Exchange != outExchange {
 		t.Error("Exchange ", result.Exchange)
 	}
 
 	close(in)
 	close(out)
+}
+
+type errorMsgHandler struct{}
+
+func (*errorMsgHandler) Handle(m *Message, p Publisher) error {
+	return NewErrorMessage(&q.Publishing{Body: []byte("Error Message")})
+}
+
+func TestErrorMessage(t *testing.T) {
+	out := make(chan *at.TestOutput, 1)
+	ch := &at.TestChan{
+		T:      t,
+		Output: out,
+	}
+	i := &invocation{
+		handler: &amqpFunctionHandler{
+			config: &amqptypes.Configuration{
+				Errors: &amqptypes.Output{},
+			},
+			channel: ch,
+		},
+		delivery: &q.Delivery{Acknowledger: ch},
+	}
+	i.handle(&errorMsgHandler{})
+
+	result := <-out
+	if string(result.Msg.Body) != "Error Message" {
+		t.Fail()
+	}
 }
