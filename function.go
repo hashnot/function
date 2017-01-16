@@ -27,10 +27,24 @@ type Publisher interface {
 	// Accept Publishing or any object that can be marshalled to be used as body.
 	// Should probably panic on any error, the panic will be recovered in handler function
 	Publish(object interface{})
+
+	PublishTo(*amqptypes.Output, interface{})
 }
 
 func AddAll(from, to map[string]interface{}) {
 	for k, v := range from {
 		to[k] = v
 	}
+}
+
+type ErrorMessage struct {
+	p *amqp.Publishing
+}
+
+func (e ErrorMessage) Error() string {
+	return string(e.p.Body)
+}
+
+func NewErrorMessage(p *amqp.Publishing) error {
+	return &ErrorMessage{p}
 }
