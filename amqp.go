@@ -124,20 +124,26 @@ func (i *invocation) handle(f Function) {
 			log.Print("Error rejecting message ", err)
 		}
 
-		p := i.NewFrom(i.handler.config.Errors.Msg)
-		errBody := bytes.NewBuffer([]byte(err.Error()))
-		errBody.WriteString("\nIncoming message:\n")
-		DumpDeliveryMeta(i.delivery, errBody)
-		p.Body = errBody.Bytes()
+		var errorMessage *q.Publishing
+		if errMsg, ok := err.(*ErrorMessage); ok {
+			errorMessage = errMsg.p
+		} else {
+			errorMessage = i.NewFrom(i.handler.config.Errors.Msg)
+			errBody := bytes.NewBuffer([]byte(err.Error()))
+			errBody.WriteString("\nIncoming message:\n")
+			DumpDeliveryMeta(i.delivery, errBody)
+			errorMessage.Body = errBody.Bytes()
+		}
 
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					log.Print("Error while sending error message ", r)
-					log.Print(p.Body)
+					log.Print("Error while sending error message: ", r)
+					log.Print(string(debug.Stack()))
+					log.Print(errorMessage.Body)
 				}
 			}()
-			i.Publish(p)
+			i.PublishTo(i.handler.config.Errors, errorMessage)
 			return
 		}()
 	} else {
@@ -147,6 +153,10 @@ func (i *invocation) handle(f Function) {
 }
 
 func (i *invocation) Publish(v interface{}) {
+	i.PublishTo(i.handler.config.Output, v)
+}
+
+func (i *invocation) PublishTo(o *amqptypes.Output, v interface{}) {
 	var p *q.Publishing
 	switch v.(type) {
 	case q.Publishing:
@@ -159,7 +169,7 @@ func (i *invocation) Publish(v interface{}) {
 		p = i.New()
 		i.encodeBody(v, p)
 	}
-	err := i.handler.config.Output.Publish(i.handler.channel, p)
+	err := o.Publish(i.handler.channel, p)
 	if err != nil {
 		panic(err)
 	}

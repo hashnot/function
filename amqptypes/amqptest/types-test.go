@@ -1,4 +1,4 @@
-package amqptypes
+package amqptest
 
 import (
 	"github.com/hashnot/function/amqp"
